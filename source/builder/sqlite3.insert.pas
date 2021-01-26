@@ -2,7 +2,7 @@
 (*                                libPasSQLite                                *)
 (*               object pascal wrapper around SQLite library                  *)
 (*                                                                            *)
-(* Copyright (c) 2020                                       Ivan Semenkov     *)
+(* Copyright (c) 2020 - 2021                                Ivan Semenkov     *)
 (* https://github.com/isemenkov/libpassqlite                ivan@semenkov.pro *)
 (*                                                          Ukraine           *)
 (******************************************************************************)
@@ -34,9 +34,8 @@ unit sqlite3.insert;
 interface
 
 uses
-  SysUtils, libpassqlite, utils.functor, container.list, sqlite3.errors_stack,
-  sqlite3.query, sqlite3.structures, sqlite3.result_row, Classes, 
-  container.memorybuffer;
+  SysUtils, libpassqlite, sqlite3.errors_stack, sqlite3.query,
+  sqlite3.structures, sqlite3.result_row, Classes, container.memorybuffer;
 
 type
   TSQLite3Insert = class
@@ -76,47 +75,27 @@ type
     { Get result. }
     function Get : Integer;  
   private
-    { Prepare multiple insert values data query and bind data. }
+    function PrepareQuery : String;
+      {$IFNDEF DEBUG}inline;{$ENDIF}
+    function BindQueryData (AQuery : TSQLite3Query; AIndex : Integer) :
+      Integer;
+      {$IFNDEF DEBUG}inline;{$ENDIF}
     function PrepareMultipleQuery : String;
+      {$IFNDEF DEBUG}inline;{$ENDIF}
     function BindMultipleQueryData (AQuery : TSQLite3Query; AIndex : Integer) : 
       Integer;
-
-    { Write blob data. }
-    procedure WriteBlob ({%H-}ARowIndex : sqlite3_int64; {%H-}AColumnName : String; 
-      {%H-}AStream : TStream); overload;
-    procedure WriteBlob (ARowIndex : sqlite3_int64; AColumnName : String; 
-      ABuffer : TMemoryBuffer); overload;
-  private
-    type
-      TMultipleValuesListCompareFunctor = class
-        ({$IFDEF FPC}specialize{$ENDIF} 
-        TBinaryFunctor<TSQLite3Structures.TValuesList, Integer>)
-      public
-        function Call (AValue1, AValue2 : TSQLite3Structures.TValuesList) : 
-          Integer; override;
-      end;
-
-      TMultipleValuesList = {$IFDEF FPC}type specialize{$ENDIF} 
-        TList<TSQLite3Structures.TValuesList, 
-        TMultipleValuesListCompareFunctor>;
+      {$IFNDEF DEBUG}inline;{$ENDIF}
   private
     FErrorsStack : PSQL3LiteErrorsStack;
     FDBHandle : ppsqlite3;
     FTableName : String;
     FValuesList : TSQLite3Structures.TValuesList;
     FColumnsList : TSQLite3Structures.TValuesList;
-    FMultipleValuesList : TMultipleValuesList;
+    FMultipleValuesList : TSQLite3Structures.TMultipleValuesList;
+    FMemoryBuffersList : TSQLite3Structures.TMemoryBuffersList;
   end;
 
 implementation
-
-{ TSQLite3Insert.TValuesListCompareFunctor }
-
-function TSQLite3Insert.TMultipleValuesListCompareFunctor.Call (AValue1, 
-  AValue2 : TSQLite3Structures.TValuesList) : Integer;
-begin
-  Result := Longint((AValue1 <> nil) and (AValue2 <> nil));
-end;
 
 { TSQLite3Insert }
 
@@ -128,7 +107,8 @@ begin
   FTableName := ATableName;
   FValuesList := TSQLite3Structures.TValuesList.Create;
   FColumnsList := TSQLite3Structures.TValuesList.Create;
-  FMultipleValuesList := TMultipleValuesList.Create;
+  FMultipleValuesList := TSQLite3Structures.TMultipleValuesList.Create;
+  FMemoryBuffersList := TSQLite3Structures.TMemoryBuffersList.Create;
 end;
 
 destructor TSQLite3Insert.Destroy;
@@ -136,6 +116,7 @@ begin
   FreeAndNil(FValuesList);
   FreeAndNil(FColumnsList);
   FreeAndNil(FMultipleValuesList);
+  FreeAndNil(FMemoryBuffersList);
 
   inherited Destroy;
 end;
@@ -151,9 +132,7 @@ begin
   val.Value_Integer := AValue;
   val.Value_Float := 0;
   val.Value_Text := '';
-  val.Value_BlobStream := nil;
   val.Value_BlobBuffer := nil;
-  val.Value_BlobLength := 0;
 
   FValuesList.Append(val);
   Result := Self;
@@ -170,9 +149,7 @@ begin
   val.Value_Integer := 0;
   val.Value_Float := AValue;
   val.Value_Text := '';
-  val.Value_BlobStream := nil;
   val.Value_BlobBuffer := nil;
-  val.Value_BlobLength := 0;
 
   FValuesList.Append(val);
   Result := Self;
@@ -189,9 +166,7 @@ begin
   val.Value_Integer := 0;
   val.Value_Float := 0;
   val.Value_Text := AValue;
-  val.Value_BlobStream := nil;
   val.Value_BlobBuffer := nil;
-  val.Value_BlobLength := 0;
 
   FValuesList.Append(val);
   Result := Self;
@@ -201,16 +176,18 @@ function TSQLite3Insert.Value (AColumnName : String; AValue : TStream) :
   TSQLite3Insert;
 var
   val : TSQLite3Structures.TValueItem;
+  ptr : Pointer;
 begin
+  val.Value_BlobBuffer := TMemoryBuffer.Create;
+  ptr := val.Value_BlobBuffer.GetAppendBuffer(AValue.Size);
+  AValue.Read(ptr, AValue.Size);
+
   val.Column_Name := AColumnName;
 
   val.Value_Type := SQLITE_BLOB;
   val.Value_Integer := 0;
   val.Value_Float := 0;
   val.Value_Text := '';
-  val.Value_BlobStream := @AValue;
-  val.Value_BlobBuffer := nil;
-  val.Value_BlobLength := AValue.Size;
 
   FValuesList.Append(val);
   Result := Self;
@@ -227,9 +204,7 @@ begin
   val.Value_Integer := 0;
   val.Value_Float := 0;
   val.Value_Text := '';
-  val.Value_BlobStream := nil;
-  val.Value_BlobBuffer := @AValue;
-  val.Value_BlobLength := AValue.GetBufferDataSize;
+  val.Value_BlobBuffer := AValue;
 
   FValuesList.Append(val);
   Result := Self;
@@ -245,9 +220,7 @@ begin
   val.Value_Integer := 0;
   val.Value_Float := 0;
   val.Value_Text := '';
-  val.Value_BlobStream := nil;
   val.Value_BlobBuffer := nil;
-  val.Value_BlobLength := 0;
 
   FValuesList.Append(val);
   Result := Self;
@@ -264,9 +237,7 @@ begin
   item.Value_Integer := 0;
   item.Value_Float := 0;
   item.Value_Text := '';
-  item.Value_BlobStream := nil;
   item.Value_BlobBuffer := nil;
-  item.Value_BlobLength := 0;
 
   FColumnsList.Append(item);
   Result := Self;
@@ -289,9 +260,7 @@ begin
     item.Value_Integer := AValue;
     item.Value_Float := 0;
     item.Value_Text := '';
-    item.Value_BlobStream := nil;
     item.Value_BlobBuffer := nil;
-    item.Value_BlobLength := 0;
 
     FMultipleValuesList.LastEntry.Value.Append(item);
   end;
@@ -310,9 +279,7 @@ begin
     item.Value_Integer := 0;
     item.Value_Float := AValue;
     item.Value_Text := '';
-    item.Value_BlobStream := nil;
     item.Value_BlobBuffer := nil;
-    item.Value_BlobLength := 0;
 
     FMultipleValuesList.LastEntry.Value.Append(item);
   end;
@@ -331,9 +298,7 @@ begin
     item.Value_Integer := 0;
     item.Value_Float := 0;
     item.Value_Text := AValue;
-    item.Value_BlobStream := nil;
     item.Value_BlobBuffer := nil;
-    item.Value_BlobLength := 0;
 
     FMultipleValuesList.LastEntry.Value.Append(item);
   end;
@@ -344,17 +309,19 @@ end;
 function TSQLite3Insert.Value (AValue : TStream) : TSQLite3Insert;
 var
   item : TSQLite3Structures.TValueItem;
+  ptr : Pointer;
 begin
   if FMultipleValuesList.LastEntry.HasValue then
   begin
+    item.Value_BlobBuffer := TMemoryBuffer.Create;
+    ptr := item.Value_BlobBuffer.GetAppendBuffer(AValue.Size);
+    AValue.Read(ptr, AValue.Size);
+
     item.Column_Name := '';
     item.Value_Type := SQLITE_BLOB;
     item.Value_Integer := 0;
     item.Value_Float := 0;
     item.Value_Text := '';
-    item.Value_BlobStream := @AValue;
-    item.Value_BlobBuffer := nil;
-    item.Value_BlobLength := AValue.Size;
 
     FMultipleValuesList.LastEntry.Value.Append(item);
   end;
@@ -373,9 +340,7 @@ begin
     item.Value_Integer := 0;
     item.Value_Float := 0;
     item.Value_Text := '';
-    item.Value_BlobStream := nil;
-    item.Value_BlobBuffer := @AValue;
-    item.Value_BlobLength := AValue.GetBufferDataSize;
+    item.Value_BlobBuffer := AValue;
 
     FMultipleValuesList.LastEntry.Value.Append(item);
   end;
@@ -394,7 +359,6 @@ begin
     item.Value_Integer := 0;
     item.Value_Float := 0;
     item.Value_Text := '';
-    item.Value_BlobStream := nil;
     item.Value_BlobBuffer := nil;
 
     FMultipleValuesList.LastEntry.Value.Append(item);
@@ -406,85 +370,90 @@ end;
 function TSQLite3Insert.Get : Integer;
 var
   Query : TSQLite3Query;
-  val : TSQLite3Structures.TValueItem;
-  SQL : String;
-  i : Integer;
-  blob_count : Integer;
-  {%H-}row_index : sqlite3_int64;
 begin
-
-  { Set values. }
   if FValuesList.FirstEntry.HasValue then
-  begin  
-
-    i := 0;
-    SQL := 'INSERT INTO ' + FTableName + ' (';
-    for val in FValuesList do
-    begin
-      { For every column. }
-      if i > 0 then
-        SQL := SQL + ', ';
-
-      SQL := SQL + val.Column_Name;
-      Inc(i);
-    end;
-    
-    i := 0;
-    SQL := SQL + ') VALUES (';
-    for val in FValuesList do
-    begin
-      { For every value. }
-      if i > 0 then
-        SQL := SQL + ', ';
-
-      SQL := SQL + '?';
-      Inc(i);
-    end;
-    
-    i := 1;
-    SQL := SQL + ');';
-    
-    Query := TSQLite3Query.Create (FErrorsStack, FDBHandle, SQL,
+  begin
+    Query := TSQLite3Query.Create (FErrorsStack, FDBHandle, PrepareQuery,
       [SQLITE_PREPARE_NORMALIZE]);
-
-    blob_count := 0;
-    for val in FValuesList do
-    begin
-      case val.Value_Type of
-        SQLITE_INTEGER : Query.Bind(i, val.Value_Integer);
-        SQLITE_FLOAT :   Query.Bind(i, val.Value_Float);
-        SQLITE_TEXT :    Query.Bind(i, val.Value_Text);
-        SQLITE_BLOB : 
-          begin
-            Query.BindBlobZero(i, val.Value_BlobLength);
-            Inc(blob_count);
-          end;
-        SQLITE_NULL :    Query.Bind(i);
-      end;
-      Inc(i);
-    end;
-
+    BindQueryData(Query, 1);
     Query.Run;
-
-    // WriteBlob
 
     Result := sqlite3_changes(FDBHandle^);
     FreeAndNil(Query);
-
   end else
-  { Set multiple values. }
   begin
-    
-    SQL := PrepareMultipleQuery;
-    Query := TSQLite3Query.Create (FErrorsStack, FDBHandle, SQL,
-      [SQLITE_PREPARE_NORMALIZE]);
+    { Set multiple values. }
+    Query := TSQLite3Query.Create (FErrorsStack, FDBHandle, 
+      PrepareMultipleQuery, [SQLITE_PREPARE_NORMALIZE]);
     BindMultipleQueryData(Query, 1);
 
     Query.Run;
     Result := sqlite3_changes(FDBHandle^);
     FreeAndNil(Query);
-
   end;  
+end;
+
+function TSQLite3Insert.PrepareQuery : String;
+var
+  val : TSQLite3Structures.TValueItem;
+  SQL : String;
+  i : Integer;  
+begin
+  if not FValuesList.FirstEntry.HasValue then
+    Exit('');
+
+  i := 0;
+  SQL := 'INSERT INTO ' + FTableName + ' (';
+  for val in FValuesList do
+  begin
+    { For every column. }
+    if i > 0 then
+      SQL := SQL + ', ';
+
+    SQL := SQL + val.Column_Name;
+    Inc(i);
+  end;
+  
+  i := 0;
+  SQL := SQL + ') VALUES (';
+  for val in FValuesList do
+  begin
+    { For every value. }
+    if i > 0 then
+      SQL := SQL + ', ';
+
+    SQL := SQL + '?';
+    Inc(i);
+  end;
+  
+  SQL := SQL + ');';
+  Result := SQL;
+end;
+
+function TSQLite3Insert.BindQueryData (AQuery : TSQLite3Query; AIndex :
+  Integer) : Integer;
+var
+  i : Integer;
+  val : TSQLite3Structures.TValueItem;
+begin
+  if not FValuesList.FirstEntry.HasValue then
+    Exit(AIndex);
+
+  i := AIndex;
+  for val in FValuesList do
+  begin
+    case val.Value_Type of
+      SQLITE_INTEGER : AQuery.Bind(i, val.Value_Integer);
+      SQLITE_FLOAT :   AQuery.Bind(i, val.Value_Float);
+      SQLITE_TEXT :    AQuery.Bind(i, val.Value_Text);
+      SQLITE_BLOB :    AQuery.BindBlob(i, val.Value_BlobBuffer.GetBufferData, 
+        val.Value_BlobBuffer.GetBufferDataSize);
+      SQLITE_NULL :    AQuery.Bind(i);
+    end;
+    Inc(i);
+  end;
+
+  Result := i;
 end;
 
 function TSQLite3Insert.PrepareMultipleQuery : String;
@@ -584,7 +553,8 @@ begin
           end;
         SQLITE_BLOB : 
           begin
-            AQuery.BindBlobZero(i, value_item.Value_BlobLength);
+            AQuery.BindBlob(i, value_item.Value_BlobBuffer.GetBufferData,
+              value_item.Value_BlobBuffer.GetBufferDataSize);
           end;
         SQLITE_TEXT :
           begin
@@ -600,33 +570,6 @@ begin
   end;
 
   Result := i;
-end;
-
-procedure TSQLite3Insert.WriteBlob (ARowIndex : sqlite3_int64; AColumnName :
-  String; AStream : TStream);
-begin
-  
-end;
-
-procedure TSQLite3Insert.WriteBlob (ARowIndex : sqlite3_int64; AColumnName :
-  String; ABuffer : TMemoryBuffer);
-var
-  blob : psqlite3_blob;
-  result_code : Integer;
-begin
-  result_code := sqlite3_blob_open(FDBHandle^, 'main',
-    PAnsiChar(AnsiString(FTableName)), PAnsiChar(AnsiString(AColumnName)),
-    ARowIndex, 1, @blob);
-  
-  if result_code <> SQLITE_OK then
-  begin
-    FErrorsStack^.Push(result_code);
-    Exit;
-  end;
-
-  FErrorsStack^.Push(sqlite3_blob_write(blob, ABuffer.GetBufferData, 
-    ABuffer.GetBufferDataSize, 0));
-  FErrorsStack^.Push(sqlite3_blob_close(blob));
 end;
 
 end.

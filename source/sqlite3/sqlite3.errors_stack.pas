@@ -2,7 +2,7 @@
 (*                                libPasSQLite                                *)
 (*               object pascal wrapper around SQLite library                  *)
 (*                                                                            *)
-(* Copyright (c) 2020                                       Ivan Semenkov     *)
+(* Copyright (c) 2020 - 2021                                Ivan Semenkov     *)
 (* https://github.com/isemenkov/libpassqlite                ivan@semenkov.pro *)
 (*                                                          Ukraine           *)
 (******************************************************************************)
@@ -194,7 +194,69 @@ begin
     SQLITE_IOERR_DIR_FSYNC : Push('SQLITE_IOERR_DIR_FSYNC: An I/O error in ' +
       'the VFS layer while trying to invoke fsync() on a directory.');
     SQLITE_CONSTRAINT_NOTNULL : Push('SQLITE_CONSTRAINT_NOTNULL :' +
-      'A NOT NULL constraint failed.')
+      'A NOT NULL constraint failed.');
+    SQLITE_READONLY_DIRECTORY : Push('SQLITE_READONLY_DIRECTORY: the database '+
+      'is read-only because process does not have permission to create a '+
+      'journal file in the same directory as the database.');
+    SQLITE_IOERR_TRUNCATE : Push('SQLITE_IOERR_TRUNCATE : An I/O error in the '+
+      'VFS layer while trying to truncate a file to a smaller size.');
+    SQLITE_CONSTRAINT_PRIMARYKEY : Push('SQLITE_CONSTRAINT_PRIMARYKEY : ' +
+      'A PRIMARY KEY constraint failed.');
+    SQLITE_IOERR_FSTAT : Push('SQLITE_IOERR_FSTAT : An I/O error in the VFS '+
+      'layer while trying to invoke fstat() (or the equivalent) on a file in '+
+      'order to determine information such as the file size or access '+
+      'permissions.');
+    SQLITE_CONSTRAINT_TRIGGER : Push('SQLITE_CONSTRAINT_TRIGGER : A RAISE '+
+      'function within a trigger fired, causing the SQL statement to abort.');
+    SQLITE_IOERR_UNLOCK : Push('SQLITE_IOERR_UNLOCK : An I/O error within '+
+      'xUnlock method on the sqlite3_io_methods object.');
+    SQLITE_CONSTRAINT_UNIQUE : Push('SQLITE_CONSTRAINT_UNIQUE : A UNIQUE '+
+      'constraint failed.');
+    SQLITE_IOERR_RDLOCK : Push('SQLITE_IOERR_RDLOCK : An I/O error within '+
+      'xLock method on the sqlite3_io_methods object while trying to obtain a '+
+      'read lock.');
+    SQLITE_CONSTRAINT_VTAB : Push('SQLITE_CONSTRAINT_VTAB : '+
+      'application-defined error code.');
+    SQLITE_IOERR_DELETE : Push('SQLITE_IOERR_DELETE : An I/O error within '+
+      'xDelete method on the sqlite3_vfs object.');
+    SQLITE_CONSTRAINT_ROWID : Push('SQLITE_CONSTRAINT_ROWID : ' +
+      'A rowid is not unique.');
+    SQLITE_IOERR_NOMEM : Push('SQLITE_IOERR_NOMEM : An operation could not be '+
+      'completed due to the inability to allocate sufficient memory.');
+    SQLITE_IOERR_ACCESS : Push('SQLITE_IOERR_ACCESS : An I/O error within the '+
+      'xAccess method on the sqlite3_vfs object.');
+    SQLITE_IOERR_CHECKRESERVEDLOCK : Push('SQLITE_IOERR_CHECKRESERVEDLOCK : '+
+      'An I/O error within the xCheckReservedLock method on the '+
+      'sqlite3_io_methods object.');
+    SQLITE_IOERR_LOCK : Push('SQLITE_IOERR_LOCK : An I/O error in the '+
+      'advisory file locking logic.');
+    SQLITE_IOERR_CLOSE : Push('SQLITE_IOERR_CLOSE : An I/O error within the '+
+      'xClose method on the sqlite3_io_methods object.');
+    SQLITE_IOERR_SHMOPEN : Push('SQLITE_IOERR_SHMOPEN : An I/O error within '+
+      'the xShmMap method on the sqlite3_io_methods object while trying to '+
+      'open a new shared memory segment.');
+    SQLITE_IOERR_SHMSIZE : Push('SQLITE_IOERR_SHMSIZE : An I/O error within '+
+      'the xShmMap method on the sqlite3_io_methods object while trying to '+
+      'enlarge a "shm" file as part of WAL mode transaction processing.');
+    SQLITE_IOERR_SHMMAP : Push('SQLITE_IOERR_SHMMAP : An I/O error within the '+
+      'xShmMap method on the sqlite3_io_methods object while trying to map a '+
+      'shared memory segment into the process address space.');
+    SQLITE_IOERR_SEEK : Push('SQLITE_IOERR_SEEK : An I/O error within the '+
+      'xRead or xWrite methods on the sqlite3_io_methods object while trying '+
+      'to seek a file descriptor to the beginning point of the file where the '+
+      'read or write is to occur.');
+    SQLITE_IOERR_DELETE_NOENT : Push('SQLITE_IOERR_DELETE_NOENT : The xDelete '+
+      'method on the sqlite3_vfs object failed because the file being deleted '+
+      'does not exist.');
+    SQLITE_IOERR_MMAP : Push('SQLITE_IOERR_MMAP : An I/O error within the '+
+      'xFetch or xUnfetch methods on the sqlite3_io_methods object while '+
+      'trying to map or unmap part of the database file into the process '+
+      'address space.');
+    SQLITE_IOERR_GETTEMPPATH : Push('SQLITE_IOERR_GETTEMPPATH : The VFS is '+
+      'unable to determine a suitable directory in which to place temporary '+
+      'files.');
+    SQLITE_IOERR_CONVPATH : Push('SQLITE_IOERR_CONVPATH : The '+
+      'cygwin_conv_path() system call failed.')
   else
     Push(IntToStr(Integer(AError)) + 
       ': Undefined SQLite3 database error code.');
